@@ -1,0 +1,43 @@
+<html>
+<body>
+<script src="vgmplay-js.js"></script>
+<script>
+Module['onRuntimeInitialized'] = function() { 
+	window.AudioContext = window.AudioContext||window.webkitAudioContext;
+	var context = new AudioContext();
+	var destination = destination || context.destination;
+	var sampleRate = context.sampleRate;
+	var waveWritePos = 0;
+
+	var result = Module.ccall('VGMPlay_Init','number');
+	var result = Module.ccall('VGMPlay_Init2','number');
+
+	var filename = "1.vgm";
+	var result = Module.ccall('OpenVGMFile','number','[string]',[filename]);
+	document.write("File open result: "+result + "<br/>");
+
+	var result = Module.ccall('PlayVGM','number');
+	var VGMPLAY_calc = Module.cwrap('FillBuffer','number',['number','number']);
+	var VGMPLAY_calc2 = Module.cwrap('FillBuffer2','number',['number','number']);
+
+	var dataPtr1 = Module._malloc(16384*2);
+	var dataPtr2 = Module._malloc(16384*2);
+	var dataHeap1 = new Int16Array(Module.HEAPU8.buffer, dataPtr1, 16384);
+	var dataHeap2 = new Int16Array(Module.HEAPU8.buffer, dataPtr2, 16384);
+
+	var node = context.createScriptProcessor(16384, 2, 2);
+	node.onaudioprocess = function (e) {
+		var output = e.outputBuffer.getChannelData(0);
+		var output2 = e.outputBuffer.getChannelData(1);
+		VGMPLAY_calc2(dataHeap1.byteOffset, dataHeap2.byteOffset);
+		var result1 = new Int16Array(dataHeap1.buffer, dataHeap1.byteOffset, 16384);
+		var result2 = new Int16Array(dataHeap2.buffer, dataHeap2.byteOffset, 16384);
+		for (var i = 0; i < 16384; i++) {
+			output[i] = result1[i] / 32768;
+			output2[i] = result2[i] / 32768;
+		}
+	};
+	node.connect(context.destination)
+}
+</script>
+</html>

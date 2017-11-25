@@ -1,43 +1,77 @@
 <html>
+<meta charset="utf-8" />
+<head>
+</head>
 <body>
 <script src="vgmplay-js.js"></script>
+<button onclick="playVGM(track)">Play</button>
+<button onclick="stopVGM()">Stop</button>
+<button onclick="playVGM(++track)">Next</button>
+<button onclick="playVGM(--track)">Previous</button>
 <script>
+'use strict';
+
+var OpenVGMFile;
+var StopVGM;
+var VGMPLAY_calc;
+var isPlaying = false;
+var filename;
+
+var dataPtr0;
+var dataPtr1;
+var dataHeap0;
+var dataHeap1;
+
+var track=1;
+
+window.AudioContext = window.AudioContext||window.webkitAudioContext;
+var context = new AudioContext();
+var destination = destination || context.destination;
+var sampleRate = context.sampleRate;
+var node = context.createScriptProcessor(16384, 2, 2);
+node.connect(context.destination)
+
 Module['onRuntimeInitialized'] = function() { 
-	window.AudioContext = window.AudioContext||window.webkitAudioContext;
-	var context = new AudioContext();
-	var destination = destination || context.destination;
-	var sampleRate = context.sampleRate;
-	var waveWritePos = 0;
+	VGMPLAY_calc = Module.cwrap('FillBuffer2','number',['number','number']);
+	OpenVGMFile = Module.cwrap('OpenVGMFile','number',['string']);
+	StopVGM = Module.cwrap('StopVGM');
 
-	var result = Module.ccall('VGMPlay_Init','number');
-	var result = Module.ccall('VGMPlay_Init2','number');
+	Module.ccall('VGMPlay_Init','number');
+	if (sampleRate != 44100) var result = Module.ccall('SetSampleRate','number',['number'],[sampleRate]);
+	Module.ccall('VGMPlay_Init2','number');
+	
+	dataPtr0 = Module._malloc(16384*2);
+	dataPtr1 = Module._malloc(16384*2);
+	dataHeap0 = new Int16Array(Module.HEAPU8.buffer, dataPtr0, 16384);
+        dataHeap1 = new Int16Array(Module.HEAPU8.buffer, dataPtr1, 16384);
+}
 
-	var filename = "1.vgm";
-	var result = Module.ccall('OpenVGMFile','number','[string]',[filename]);
-	document.write("File open result: "+result + "<br/>");
+function stopVGM() {
+	if (isPlaying) {
+		StopVGM();
+		isPlaying = false;
+	}
+}
+
+function playVGM(track){
+	if (isPlaying) StopVGM(); else isPlaying = true;
+
+	var result = OpenVGMFile(track+".vgm");
+	//console.log(filename + " open result: "+result);
 
 	var result = Module.ccall('PlayVGM','number');
-	var VGMPLAY_calc = Module.cwrap('FillBuffer','number',['number','number']);
-	var VGMPLAY_calc2 = Module.cwrap('FillBuffer2','number',['number','number']);
 
-	var dataPtr1 = Module._malloc(16384*2);
-	var dataPtr2 = Module._malloc(16384*2);
-	var dataHeap1 = new Int16Array(Module.HEAPU8.buffer, dataPtr1, 16384);
-	var dataHeap2 = new Int16Array(Module.HEAPU8.buffer, dataPtr2, 16384);
-
-	var node = context.createScriptProcessor(16384, 2, 2);
 	node.onaudioprocess = function (e) {
-		var output = e.outputBuffer.getChannelData(0);
-		var output2 = e.outputBuffer.getChannelData(1);
-		VGMPLAY_calc2(dataHeap1.byteOffset, dataHeap2.byteOffset);
+		var output0 = e.outputBuffer.getChannelData(0);
+		var output1 = e.outputBuffer.getChannelData(1);
+		VGMPLAY_calc(dataHeap0.byteOffset, dataHeap1.byteOffset);
+		var result0 = new Int16Array(dataHeap0.buffer, dataHeap0.byteOffset, 16384);
 		var result1 = new Int16Array(dataHeap1.buffer, dataHeap1.byteOffset, 16384);
-		var result2 = new Int16Array(dataHeap2.buffer, dataHeap2.byteOffset, 16384);
 		for (var i = 0; i < 16384; i++) {
-			output[i] = result1[i] / 32768;
-			output2[i] = result2[i] / 32768;
+			output0[i] = result0[i] / 32768;
+			output1[i] = result1[i] / 32768;
 		}
 	};
-	node.connect(context.destination)
 }
 </script>
 </html>

@@ -33,7 +33,7 @@ file(GLOB SOURCES VGMPlay/src/*.c)
 if(EMSCRIPTEN)
   add_executable(vgmplay-js src/main.c)
   target_link_libraries(vgmplay-js vgmplay)
-  set(VGMPLAY_EXPORTS "'_VGMPlay_Init','_VGMPlay_Init2','_PlayVGM','_FillBuffer2','_OpenVGMFile','_FillBuffer','_SetSampleRate','_StopVGM'")
+  set(VGMPLAY_EXPORTS "'_VGMPlay_Init','_VGMPlay_Init2','_PlayVGM','_FillBuffer2','_OpenVGMFile','_FillBuffer','_SetSampleRate','_StopVGM','_VGMEnded','_GetTrackLength','_SeekVGM'")
   set(CMAKE_EXE_LINKER_FLAGS "-s USE_ZLIB=1 -s TOTAL_MEMORY=33554432 -s RESERVED_FUNCTION_POINTERS=100 --memory-init-file 0 --preload-file ${PROJECT_SOURCE_DIR}/files@/ -O3 -s EXPORTED_FUNCTIONS=\"[${VGMPLAY_EXPORTS}]\"")
 endif()
 

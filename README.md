@@ -1,6 +1,6 @@
 # vgmplay-js
 
-Emscripten is required to build this. Clone and build with:
+Emscripten and a fairly recent version of Cmake are required to build this. Clone and build with:
 
 ```
 git clone --recursive https://github.com/niekvlessert/vgmplay-js.git

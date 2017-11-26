@@ -1,6 +1,7 @@
 <html>
 <meta charset="utf-8" />
 <head>
+<link rel="stylesheet" type="text/css" href="slider_style.css">
 </head>
 <body>
 <script src="vgmplay-js.js"></script>
@@ -8,14 +9,25 @@
 <button onclick="stopVGM()">Stop</button>
 <button onclick="playVGM(++track)">Next</button>
 <button onclick="playVGM(--track)">Previous</button>
+<br/><br/>
+<input type=text id=url></input>
+<button onclick="loadVGM(document.getElementById('url').value)">Play URL</button>
+<br/></br>
+<input id="slider1" type="range" min="0" max="100" value="0"/>
 <script>
 'use strict';
 
 var OpenVGMFile;
 var StopVGM;
-var VGMPLAY_calc;
+var FillBuffer;
+var VGMEnded;
+var GetTrackLength;
+var SeekVGM;
+
 var isPlaying = false;
 var filename;
+var fileUploaded;
+var trackLength;
 
 var dataPtr0;
 var dataPtr1;
@@ -29,12 +41,17 @@ var context = new AudioContext();
 var destination = destination || context.destination;
 var sampleRate = context.sampleRate;
 var node = context.createScriptProcessor(16384, 2, 2);
-node.connect(context.destination)
+
+var slider1 = document.getElementById("slider1");
+
 
 Module['onRuntimeInitialized'] = function() { 
-	VGMPLAY_calc = Module.cwrap('FillBuffer2','number',['number','number']);
+	FillBuffer = Module.cwrap('FillBuffer2','number',['number','number']);
 	OpenVGMFile = Module.cwrap('OpenVGMFile','number',['string']);
 	StopVGM = Module.cwrap('StopVGM');
+	VGMEnded = Module.cwrap('VGMEnded');
+	GetTrackLength = Module.cwrap('GetTrackLength');
+	SeekVGM = Module.cwrap('SeekVGM','number',['number','number']);
 
 	Module.ccall('VGMPlay_Init','number');
 	if (sampleRate != 44100) var result = Module.ccall('SetSampleRate','number',['number'],[sampleRate]);
@@ -44,27 +61,66 @@ Module['onRuntimeInitialized'] = function() {
 	dataPtr1 = Module._malloc(16384*2);
 	dataHeap0 = new Int16Array(Module.HEAPU8.buffer, dataPtr0, 16384);
         dataHeap1 = new Int16Array(Module.HEAPU8.buffer, dataPtr1, 16384);
+
+	slider1.addEventListener('mouseup', function() {
+		if (isPlaying) {
+			var position = Math.floor((this.value/100)*trackLength);
+			//console.log(position);
+			SeekVGM(0, position);
+		}
+	});
+}
+
+function loadVGM(url){
+	//console.log(url);
+	if (fileUploaded) FS.unlink("4.vgm");
+	var xhr = new XMLHttpRequest();
+	xhr.responseType = "arraybuffer";
+	xhr.onreadystatechange = function() {
+		if (xhr.readyState == XMLHttpRequest.DONE) {
+			var arrayBuffer = xhr.response;
+			//alert(xhr.responseText);
+			var byteArray = new Uint8Array(arrayBuffer);
+			FS.createDataFile("/", "4.vgm", byteArray, true, true);
+			fileUploaded = true;
+			track = 4;
+			playVGM(track);
+		}
+	}
+	xhr.open('GET', url, true);
+	xhr.send(null);
 }
 
 function stopVGM() {
 	if (isPlaying) {
 		StopVGM();
+		node.disconnect(context.destination);
 		isPlaying = false;
 	}
 }
 
 function playVGM(track){
+	node.connect(context.destination)
 	if (isPlaying) StopVGM(); else isPlaying = true;
 
 	var result = OpenVGMFile(track+".vgm");
-	//console.log(filename + " open result: "+result);
+	//console.log(track+".vgm open result: "+result);
 
-	var result = Module.ccall('PlayVGM','number');
+	Module.ccall('PlayVGM','number');
+	trackLength = GetTrackLength();
+
+	//var time = new Date();
+	//console.log(time.getHours() + ":" + time.getMinutes() + ":" + time.getSeconds());
 
 	node.onaudioprocess = function (e) {
 		var output0 = e.outputBuffer.getChannelData(0);
 		var output1 = e.outputBuffer.getChannelData(1);
-		VGMPLAY_calc(dataHeap0.byteOffset, dataHeap1.byteOffset);
+		if (VGMEnded()) {
+			//time = new Date();
+			//console.log(time.getHours() + ":" + time.getMinutes() + ":" + time.getSeconds());
+			node.disconnect(context.destination);
+		}
+		FillBuffer(dataHeap0.byteOffset, dataHeap1.byteOffset);
 		var result0 = new Int16Array(dataHeap0.buffer, dataHeap0.byteOffset, 16384);
 		var result1 = new Int16Array(dataHeap1.buffer, dataHeap1.byteOffset, 16384);
 		for (var i = 0; i < 16384; i++) {

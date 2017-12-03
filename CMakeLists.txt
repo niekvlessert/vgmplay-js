@@ -18,7 +18,7 @@ list(REMOVE_ITEM SOURCES "${PROJECT_SOURCE_DIR}/modules/vgmplay/VGMPlay/chips/op
 list(REMOVE_ITEM SOURCES "${PROJECT_SOURCE_DIR}/modules/vgmplay/VGMPlay/chips/scsplfo.c")
 list(REMOVE_ITEM SOURCES "${PROJECT_SOURCE_DIR}/modules/vgmplay/VGMPlay/Stream.c")
 list(REMOVE_ITEM SOURCES "${PROJECT_SOURCE_DIR}/modules/vgmplay/VGMPlay/pt_ioctl.c")
-list(REMOVE_ITEM SOURCES "${PROJECT_SOURCE_DIR}/modules/vgmplay/VGMPlay/VGMPlayUI.c")
+#list(REMOVE_ITEM SOURCES "${PROJECT_SOURCE_DIR}/modules/vgmplay/VGMPlay/VGMPlayUI.c")
 list(REMOVE_ITEM SOURCES "${PROJECT_SOURCE_DIR}/modules/vgmplay/VGMPlay/vgm2wav.c")
 list(REMOVE_ITEM SOURCES "${PROJECT_SOURCE_DIR}/modules/vgmplay/VGMPlay/vgm2pcm.c")
 list(REMOVE_ITEM SOURCES "${PROJECT_SOURCE_DIR}/modules/vgmplay/VGMPlay/VGMPlay_AddFmts.c")
@@ -33,7 +33,9 @@ file(GLOB SOURCES VGMPlay/src/*.c)
 if(EMSCRIPTEN)
   add_executable(vgmplay-js src/main.c)
   target_link_libraries(vgmplay-js vgmplay)
-  set(VGMPLAY_EXPORTS "'_VGMPlay_Init','_VGMPlay_Init2','_PlayVGM','_FillBuffer2','_OpenVGMFile','_FillBuffer','_SetSampleRate','_StopVGM','_VGMEnded','_GetTrackLength','_SeekVGM'")
-  set(CMAKE_EXE_LINKER_FLAGS "-s USE_ZLIB=1 -s TOTAL_MEMORY=33554432 -s RESERVED_FUNCTION_POINTERS=100 --memory-init-file 0 --preload-file ${PROJECT_SOURCE_DIR}/files@/ -O3 -s EXPORTED_FUNCTIONS=\"[${VGMPLAY_EXPORTS}]\"")
+  set(VGMPLAY_EXPORTS "'_VGMPlay_Init','_VGMPlay_Init2','_PlayVGM','_FillBuffer2','_OpenVGMFile','_CloseVGMFile','_FillBuffer','_SetSampleRate','_SetLoopCount','_StopVGM','_VGMEnded','_GetTrackLength','_GetLoopPoint','_SeekVGM','_SamplePlayback2VGM'")
+  set(CMAKE_EXE_LINKER_FLAGS "-s USE_ZLIB=1 -s TOTAL_MEMORY=134217728 -s RESERVED_FUNCTION_POINTERS=100 --memory-init-file 0 --preload-file ${PROJECT_SOURCE_DIR}/files@/ -O3 -s EXPORTED_FUNCTIONS=\"[${VGMPLAY_EXPORTS}]\"")
 endif()
+
+#33554432
 

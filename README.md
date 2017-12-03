@@ -5,8 +5,7 @@ Emscripten and a fairly recent version of Cmake are required to build this. Clon
 ```
 git clone --recursive https://github.com/niekvlessert/vgmplay-js.git
 cd vgmplay-js
-./fix_vgmplay.sh
-mkdir files #put some vgm files in the directory like this... 1.vgm, 2.vgm etc.
+cp ~/yrw801.rom files #for ymf278B support
 mkdir build
 cd build
 emcmake cmake ..

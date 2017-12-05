@@ -88,14 +88,16 @@ class VGMPlay {
 	play () {
 		if (this.isPlaying) this.StopVGM(); else this.isPlaying = true;
 		this.PlayVGM();
-		this.trackLength = this.GetTrackLength();
+		this.trackLength = this.GetTrackLength()/44100;
 	}
 
 	getTrackInfo () {
 		this.trackLength = Math.floor(this.GetTrackLength()/44100);
 		this.loopPoint = Math.floor(this.GetLoopPoint()/44100);
 		this.initialLength = Math.floor(this.trackLength-((this.loopCount-1)*this.loopPoint));
-		return [this.trackLength, this.loopPoint, this.loopCount, this.initialLength];
+		this.trackInfo = {trackLength:this.trackLength, loopPoint:this.loopPoint, loopCount:this.loopCount, initialLength:this.initialLength};
+		return this.trackInfo;
+		//return [this.trackLength, this.loopPoint, this.loopCount, this.initialLength];
 	}
 
 
@@ -157,7 +159,10 @@ class VGMPlay_WebAudio extends VGMPlay {
 
 		if (this.isPlaying) {
 			this.StopVGM();
-		} else this.isPlaying = true;
+		} else {
+			this.isPlaying = true;
+			this.isPaused = false;
+		}
 		this.PlayVGM();
 		this.trackLength = this.GetTrackLength();
 
@@ -184,16 +189,20 @@ class VGMPlay_WebAudio extends VGMPlay {
 			}
 		};
 	}
+
+	stopAudio () {
+		if (!this.noContext) {
+			if (!this.isPaused) this.node.disconnect(this.context.destination);
+			this.context.close();
+			this.noContext = true;
+			this.isPaused = true;
+		}
+	}
 	
-	togglePause (fullStop) {
-		this.fullStop = fullStop;
+	togglePause () {
 		if (this.isPlaying) {
 			if (!this.isPaused) {
 				this.node.disconnect(this.context.destination);
-		                if (this.fullStop) {
-					this.context.close();
-					this.noContext = true;
-				}
 				this.isPaused = true;
 			} else {
 				if (this.noContext) {

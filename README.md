@@ -10,6 +10,7 @@ mkdir build
 cd build
 emcmake cmake ..
 make
-cp vgmplay* /var/www/html/
-cp index.html /var/www/html/
+cp vgmplay*.js /var/www/html/
+cp ../vgmplay*.js /var/www/html/
+cp ../index.html /var/www/html/
 ```

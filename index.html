@@ -9,6 +9,7 @@
 <body>
 
 <section class="container">
+	<div id=timer class="timer">00:00</div>
 	<div id="p" class="progress">
 		<div id="pb" class="progress-bar"></div>
 	</div>
@@ -16,20 +17,17 @@
 	<button onclick="changeTrack(1)">|&lt;</button>
 	<button id="buttonTogglePlayback" onclick="togglePlayback()">||</button>
 	<button onclick="changeTrack()">&gt;|</button>
-	<button onclick="togglePlayback(true)">&#9632;</button>
+	<button onclick="stopPlayback()">&#9632;</button>
 	<br/><br/>
 	Loopcount: <input type=text id=loopCount value=2 size=5 style="text-align:center">
 	<br/><br/>
         <div id="dnd-panel">Drag 'n drop your VGM file here!</div>
-
 	
 </section>
-<button onclick="removeProgressTransitionClass()">go</button>
+
 <script>
 
-//var domain = "192.168.1.14";
-var domain = "vlessert.nl";
-var url = "http://"+domain+"/";
+var url = "http://"+window.location.hostname+"/";
 
 var track = 0;
 var trackData;
@@ -38,16 +36,18 @@ var tracks = ["01","03","10","54"];
 
 var currentWidth;
 var currentTransition;
+var extraTime;
+
+var timerDisplay;
+var secondsPassed = 0;
+
+var stopTimer;
 
 setKeyBindings();
 
 const vgmplay_webaudio = new VGMPlay_WebAudio();
 
 changeTrack();
-
-function removeProgressTransitionClass(){
-	document.getElementById("pb").classList.remove("progress-bar");
-}
 
 function changeTrack(previous){
 	if (!firstRun) {
@@ -58,23 +58,56 @@ function changeTrack(previous){
 		}
 		vgmplay_webaudio.setLoopCount(document.getElementById("loopCount").value);
 	}
+	clearInterval(stopTimer);
+
+	clearInterval(timerDisplay);
+	document.getElementById("timer").innerHTML="00:00";
+	secondsPassed = 0;
+
+	document.getElementById("buttonTogglePlayback").innerHTML="||";
+
 	vgmplay_webaudio.loadURL(url+tracks[track]+'.vgm', true, setProgressBar, changeTrack);
 }
 
-function togglePlayback(fullStop) {
-	if (!vgmplay_webaudio.isPaused) {
-		document.getElementById("buttonTogglePlayback").innerHTML="&#9654;";
-		//currentTransition = document.getElementById("pb").style.transition;
-		//currentWidth = document.getElementById("pb").style.width;
+function stopPlayback() {
+	document.getElementById("buttonTogglePlayback").innerHTML="&#9654;";
 
-		document.getElementById("pb").style.transition = "none";
-		//document.getElementById("pb").style.width = "10%";
-		//pause progressbar
+	currentWidth = window.getComputedStyle(pb).width;
+	currentTransition = window.getComputedStyle(pb).transition;
+	document.getElementById("pb").style.width = currentWidth;
+	document.getElementById("pb").style.transition = "0s";
+
+	clearInterval(timerDisplay);
+
+	vgmplay_webaudio.stopAudio();
+
+	console.log("Stop playback completely (no CPU usage)");
+}
+
+function togglePlayback() {
+	if (!vgmplay_webaudio.isPaused && !vgmplay_webaudio.noContext) {
+		document.getElementById("buttonTogglePlayback").innerHTML="&#9654;";
+
+		currentWidth = window.getComputedStyle(pb).width;
+		currentTransition = window.getComputedStyle(pb).transition;
+		document.getElementById("pb").style.width = currentWidth;
+		document.getElementById("pb").style.transition = "0s";
+
+		clearInterval(timerDisplay);
+
+		stopTimer = setTimeout(stopPlayback, 60000);
 	} else {
 		document.getElementById("buttonTogglePlayback").innerHTML="||";
-		//continue progressbar
+
+		document.getElementById("pb").style.width = "100%";
+		document.getElementById("pb").style.transition = currentTransition;
+
+		moveTimer();
+
+		clearInterval(stopTimer);
+
 	}
-	vgmplay_webaudio.togglePause(fullStop);
+	vgmplay_webaudio.togglePause();
 }
 
 // key bindings
@@ -99,16 +132,31 @@ function setKeyBindings() {
 
 function setProgressBar(){
 	trackData = vgmplay_webaudio.getTrackInfo();
-	console.log(trackData[0]);
+
+	if (trackData.loopPoint !== 0 ) extraTime = 5; else extraTime = 0;
+
 	if (!firstRun) {
 		document.getElementById("pb").style.transition = "0s linear";
 		document.getElementById("pb").style.width = "0%";
 	} else firstRun = false;
 
 	setTimeout(function(){
-		document.getElementById("pb").style.transition = trackData[0]+5+"s linear";
+		document.getElementById("pb").style.transition = trackData.trackLength+extraTime+"s linear";
 		document.getElementById("pb").style.width = "100%";
-	}, 0);
+	}, 100);
+
+	moveTimer();
+}
+
+function moveTimer(){
+        timerDisplay = setInterval(function(){
+                secondsPassed++;
+                var displayValue;
+                var timer = document.getElementById("timer");
+                var date = new Date(null);
+                date.setSeconds(secondsPassed);
+                timer.innerHTML = date.toISOString().substr(14, 5);
+        }, 1000);
 }
 
 var parentDiv = document.getElementById('p');
@@ -119,11 +167,13 @@ parentDiv.addEventListener('click', function (e) {
         document.getElementById("pb").style.transition = "0s linear";
         document.getElementById("pb").style.width = destination+"%";
 	setTimeout(function(){
-		var clicked = trackData[0]-(trackData[0]*(destination/100));
+		var clicked = trackData.trackLength-(trackData.trackLength*(destination/100));
 		document.getElementById("pb").style.width = "100%";
-		document.getElementById("pb").style.transition = clicked+5+"s linear";
-		console.log(destination/4 + " " + clicked)
-		vgmplay_webaudio.seek(Math.floor(destination*(trackData[0]/100)));
+		document.getElementById("pb").style.transition = clicked+extraTime+"s linear";
+		//console.log(destination/4 + " " + clicked)
+		//console.log(Math.floor(trackData.trackLength*(destination/100)));
+		secondsPassed = Math.floor(trackData.trackLength*(destination/100));
+		vgmplay_webaudio.seek(Math.floor(destination*(trackData.trackLength/100)));
 	 }, 0);
 }, false);
 
@@ -151,7 +201,15 @@ function onDrop(e) {
 		var reader = new FileReader();
 		reader.onloadend = function() {
 			try {
-				console.log("file loaded!!!");
+				try {
+					FS.unlink("dnd.vgm");
+				}catch(err) {}
+				var byteArray = new Uint8Array(reader.result);
+                                FS.createDataFile("/", "dnd.vgm", byteArray, true, true);
+				vgmplay_webaudio.setLoopCount(document.getElementById("loopCount").value);
+				vgmplay_webaudio.load("dnd.vgm");
+				vgmplay_webaudio.play();
+				setProgressBar();
 			} catch(e) {
 				console.log(e);
 			}
@@ -165,8 +223,6 @@ function onDrop(e) {
 }
 
 window.addEventListener('DOMContentLoaded', function() {
-	//.install(document.body);
-
 	dndPanel = document.getElementById('dnd-panel');
 	dndPanel.addEventListener("dragover", onDragOver);
 	dndPanel.addEventListener("dragenter", onDragEnter);
@@ -185,7 +241,6 @@ function displayStuff(){
 }
 
 function readInMemory(){
-	console.log("read!!");
         context = new AudioContext();
         destination = context.destination;
 
@@ -213,8 +268,7 @@ function readInMemory(){
 //const vgmplay = new VGMPlay();
 
 function load() {
-	console.log("load!!");
-	vgmplay.loadURL("http://192.168.1.14/03.vgm");
+	vgmplay.loadURL("http://1.2.3.4/01.vgm");
 	vgmplay.play();
 }
 

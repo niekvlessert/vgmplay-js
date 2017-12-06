@@ -86,6 +86,7 @@ class VGMPlay {
 	}
 
 	play () {
+		this.isPaused = false;
 		if (this.isPlaying) this.StopVGM(); else this.isPlaying = true;
 		this.PlayVGM();
 		this.trackLength = this.GetTrackLength()/44100;
@@ -154,14 +155,25 @@ class VGMPlay_WebAudio extends VGMPlay {
 		this.initialised = true;
 	}
 
+	createWebAudio () {
+		this.context = new AudioContext();
+		this.destination = this.destination || this.context.destination;
+		this.sampleRate = this.context.sampleRate;
+		this.node = this.context.createScriptProcessor(16384, 2, 2);
+		this.noContext = false;
+	}
+
 	play () {
+		if (this.noContext) this.createWebAudio();
+
 		this.node.connect(this.context.destination);
+
+		this.isPaused = false;
 
 		if (this.isPlaying) {
 			this.StopVGM();
 		} else {
 			this.isPlaying = true;
-			this.isPaused = false;
 		}
 		this.PlayVGM();
 		this.trackLength = this.GetTrackLength();
@@ -206,13 +218,9 @@ class VGMPlay_WebAudio extends VGMPlay {
 				this.isPaused = true;
 			} else {
 				if (this.noContext) {
-					this.context = new AudioContext();
-					this.destination = this.destination || this.context.destination;
-					this.sampleRate = this.context.sampleRate;
-					this.node = this.context.createScriptProcessor(16384, 2, 2);
+					this.createWebAudio();
 					this.node.connect(this.context.destination);
 					this.playAudio();
-					this.noContext = false;
 				} else {
 					this.node.connect(this.context.destination);
 				}

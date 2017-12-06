@@ -11,7 +11,10 @@
 <section class="container">
 	<div id=timer class="timer">00:00</div>
 	<div id="p" class="progress">
-		<div id="pb" class="progress-bar"></div>
+		<div class="half full sexy">
+		    <div class="gradient-overlay"></div>
+		    <div id="pb" class="bar"></div>
+		</div>
 	</div>
 	<br/>
 	<button onclick="changeTrack(1)">|&lt;</button>
@@ -22,6 +25,8 @@
 	Loopcount: <input type=text id=loopCount value=2 size=5 style="text-align:center">
 	<br/><br/>
         <div id="dnd-panel">Drag 'n drop your VGM file here!</div>
+	</br/>
+	space = toggle playback | n = next | p = previous
 	
 </section>
 
@@ -72,12 +77,14 @@ function changeTrack(previous){
 function stopPlayback() {
 	document.getElementById("buttonTogglePlayback").innerHTML="&#9654;";
 
-	currentWidth = window.getComputedStyle(pb).width;
-	currentTransition = window.getComputedStyle(pb).transition;
-	document.getElementById("pb").style.width = currentWidth;
-	document.getElementById("pb").style.transition = "0s";
+	if (!vgmplay_webaudio.isPaused) {
+		currentWidth = window.getComputedStyle(pb).width;
+		currentTransition = window.getComputedStyle(pb).transition;
+		document.getElementById("pb").style.width = currentWidth;
+		document.getElementById("pb").style.transition = "0s";
 
-	clearInterval(timerDisplay);
+		clearInterval(timerDisplay);
+	}
 
 	vgmplay_webaudio.stopAudio();
 
@@ -128,7 +135,21 @@ function setKeyBindings() {
 	});
 }
 
-// progress bar
+// timer
+
+function moveTimer(){
+        timerDisplay = setInterval(function(){
+                secondsPassed++;
+                var displayValue;
+                var timer = document.getElementById("timer");
+                var date = new Date(null);
+                date.setSeconds(secondsPassed);
+                timer.innerHTML = date.toISOString().substr(14, 5);
+        }, 1000);
+}
+
+
+// progress bar 
 
 function setProgressBar(){
 	trackData = vgmplay_webaudio.getTrackInfo();
@@ -148,17 +169,6 @@ function setProgressBar(){
 	moveTimer();
 }
 
-function moveTimer(){
-        timerDisplay = setInterval(function(){
-                secondsPassed++;
-                var displayValue;
-                var timer = document.getElementById("timer");
-                var date = new Date(null);
-                date.setSeconds(secondsPassed);
-                timer.innerHTML = date.toISOString().substr(14, 5);
-        }, 1000);
-}
-
 var parentDiv = document.getElementById('p');
 
 parentDiv.addEventListener('click', function (e) {
@@ -168,10 +178,10 @@ parentDiv.addEventListener('click', function (e) {
         document.getElementById("pb").style.width = destination+"%";
 	setTimeout(function(){
 		var clicked = trackData.trackLength-(trackData.trackLength*(destination/100));
-		document.getElementById("pb").style.width = "100%";
-		document.getElementById("pb").style.transition = clicked+extraTime+"s linear";
-		//console.log(destination/4 + " " + clicked)
-		//console.log(Math.floor(trackData.trackLength*(destination/100)));
+		if (!vgmplay_webaudio.isPaused) {
+			document.getElementById("pb").style.width = "100%";
+			document.getElementById("pb").style.transition = clicked+extraTime+"s linear";
+		}
 		secondsPassed = Math.floor(trackData.trackLength*(destination/100));
 		vgmplay_webaudio.seek(Math.floor(destination*(trackData.trackLength/100)));
 	 }, 0);
@@ -209,6 +219,12 @@ function onDrop(e) {
 				vgmplay_webaudio.setLoopCount(document.getElementById("loopCount").value);
 				vgmplay_webaudio.load("dnd.vgm");
 				vgmplay_webaudio.play();
+				clearInterval(stopTimer);
+				clearInterval(timerDisplay);
+				document.getElementById("timer").innerHTML="00:00";
+				secondsPassed = 0;
+
+				document.getElementById("buttonTogglePlayback").innerHTML="||";
 				setProgressBar();
 			} catch(e) {
 				console.log(e);
@@ -241,23 +257,23 @@ function displayStuff(){
 }
 
 function readInMemory(){
-        context = new AudioContext();
-        destination = context.destination;
+	context = new AudioContext();
+	destination = context.destination;
 
 	vgmplay.play();
 
-        var node = context.createBufferSource()
-                , buffer = context.createBuffer(1, 16384000, context.sampleRate)
-                , data = buffer.getChannelData(0);
+	var node = context.createBufferSource()
+		, buffer = context.createBuffer(1, 16384000, context.sampleRate)
+		, data = buffer.getChannelData(0);
 
-        for (i=0;i<1000;i++){
+	for (i=0;i<1000;i++){
 		console.log(i);
-                var result = new Int16Array();
-                result = vgmplay.getAudioBuffer();
-                for(var j = 0; j < 16384; j++) {
-                        data[j+(i*16384)]=result[j]/32768;
-                }
-        }
+		var result = new Int16Array();
+		result = vgmplay.getAudioBuffer();
+		for(var j = 0; j < 16384; j++) {
+			data[j+(i*16384)]=result[j]/32768;
+		}
+	}
 
         node.buffer = buffer;
         node.loop = true;

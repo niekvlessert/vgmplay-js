@@ -2,7 +2,7 @@
 <meta charset="utf-8" />
 <head>
 	<link rel="stylesheet" href="css/style.css">
-	<script src="vgmplay-js.js"></script>
+	<script src="dist/vgmplay-js.js"></script>
 	<script src="vgmplay-js-glue.js"></script>
 	<script src="//cdnjs.cloudflare.com/ajax/libs/mousetrap/1.4.6/mousetrap.min.js"></script>
 </head>
@@ -26,18 +26,20 @@
 	<br/><br/>
         <div id="dnd-panel">Drag 'n drop your VGM file here!</div>
 	</br/>
-	space = toggle playback | n = next | p = previous
+	space = toggle play/pause | n = next | p = previous | s = stop (no CPU usage)
 	
 </section>
 
 <script>
 
-var url = "http://"+window.location.hostname+"/";
+'use strict';
+
+var url = "http://"+window.location.hostname+"/dist/";
 
 var track = 0;
 var trackData;
 var firstRun = true;
-var tracks = ["01","03","10","54"];
+var tracks = ["01"];
 
 var currentWidth;
 var currentTransition;
@@ -48,30 +50,105 @@ var secondsPassed = 0;
 
 var stopTimer;
 
+var changeTrack;
+var setProgressBar;
+
+var vgmplay_webaudio;
+
+var pb = document.getElementById("pb");
+
+var dndPanel;
+
 setKeyBindings();
 
-const vgmplay_webaudio = new VGMPlay_WebAudio();
+// Some functions in here to avoid issues with starting playback before rom data has been loaded.
 
-changeTrack();
+Module['onRuntimeInitialized'] = function() {
 
-function changeTrack(previous){
-	if (!firstRun) {
-		if (previous==1){
-			if (track > 0) track--; else track = tracks.length-1;
-		} else {
-			if (track < tracks.length-1) track++; else track = 0;
+	vgmplay_webaudio = new VGMPlay_WebAudio();
+
+	changeTrack = function (previous){
+		if (!firstRun) {
+			if (previous==1){
+				if (track > 0) track--; else track = tracks.length-1;
+			} else {
+				if (track < tracks.length-1) track++; else track = 0;
+			}
+			vgmplay_webaudio.setLoopCount(document.getElementById("loopCount").value);
 		}
-		vgmplay_webaudio.setLoopCount(document.getElementById("loopCount").value);
+		clearInterval(stopTimer);
+
+		clearInterval(timerDisplay);
+		document.getElementById("timer").innerHTML="00:00";
+		secondsPassed = 0;
+
+		document.getElementById("buttonTogglePlayback").innerHTML="||";
+
+		vgmplay_webaudio.loadURL(url+tracks[track]+'.vgm', true, setProgressBar, changeTrack);
 	}
-	clearInterval(stopTimer);
 
-	clearInterval(timerDisplay);
-	document.getElementById("timer").innerHTML="00:00";
-	secondsPassed = 0;
+	changeTrack();
 
-	document.getElementById("buttonTogglePlayback").innerHTML="||";
+	// progress bar
 
-	vgmplay_webaudio.loadURL(url+tracks[track]+'.vgm', true, setProgressBar, changeTrack);
+	function setProgressBar(){
+		trackData = vgmplay_webaudio.getTrackInfo();
+
+		if (trackData.loopPoint !== 0 ) extraTime = 5; else extraTime = 0;
+
+		if (!firstRun) {
+			pb.style.transition = "0s linear";
+			pb.style.width = "0%";
+		} else firstRun = false;
+
+		setTimeout(function(){
+			pb.style.transition = trackData.trackLength+extraTime+"s linear";
+			pb.style.width = "100%";
+		}, 100);
+
+		moveTimer();
+	}
+}
+
+// if other browser tab gets focus, css transition adapts to it when refocussing on player
+// however, a new transition won't start when unfocussed, so set it on refocus
+// this can be done because on refocussing an event fires a transition ended on the progress bar
+
+function setProgressOnFocusAndTransitionEnded() {
+	pb.style.transition = "0s linear";
+	pb.style.width = (secondsPassed/trackData.trackLength)*100 + "%";
+	setTimeout(function(){
+		pb.style.transition = trackData.trackLength+extraTime+"s linear";
+		pb.style.width = "100%";
+	}, 100);
+}
+
+pb.addEventListener("transitionend", setProgressOnFocusAndTransitionEnded, true);
+
+function togglePlayback() {
+	if (!vgmplay_webaudio.isPaused && !vgmplay_webaudio.noContext) {
+		document.getElementById("buttonTogglePlayback").innerHTML="&#9654;";
+
+		currentWidth = window.getComputedStyle(pb).width;
+		currentTransition = window.getComputedStyle(pb).transition;
+		pb.style.width = currentWidth;
+		pb.style.transition = "0s";
+
+		clearInterval(timerDisplay);
+
+		stopTimer = setTimeout(stopPlayback, 60000);
+	} else {
+		document.getElementById("buttonTogglePlayback").innerHTML="||";
+
+		pb.style.width = "100%";
+		pb.style.transition = currentTransition;
+
+		moveTimer();
+
+		clearInterval(stopTimer);
+
+	}
+	vgmplay_webaudio.togglePause();
 }
 
 function stopPlayback() {
@@ -80,8 +157,8 @@ function stopPlayback() {
 	if (!vgmplay_webaudio.isPaused) {
 		currentWidth = window.getComputedStyle(pb).width;
 		currentTransition = window.getComputedStyle(pb).transition;
-		document.getElementById("pb").style.width = currentWidth;
-		document.getElementById("pb").style.transition = "0s";
+		pb.style.width = currentWidth;
+		pb.style.transition = "0s";
 
 		clearInterval(timerDisplay);
 	}
@@ -89,32 +166,6 @@ function stopPlayback() {
 	vgmplay_webaudio.stopAudio();
 
 	console.log("Stop playback completely (no CPU usage)");
-}
-
-function togglePlayback() {
-	if (!vgmplay_webaudio.isPaused && !vgmplay_webaudio.noContext) {
-		document.getElementById("buttonTogglePlayback").innerHTML="&#9654;";
-
-		currentWidth = window.getComputedStyle(pb).width;
-		currentTransition = window.getComputedStyle(pb).transition;
-		document.getElementById("pb").style.width = currentWidth;
-		document.getElementById("pb").style.transition = "0s";
-
-		clearInterval(timerDisplay);
-
-		stopTimer = setTimeout(stopPlayback, 60000);
-	} else {
-		document.getElementById("buttonTogglePlayback").innerHTML="||";
-
-		document.getElementById("pb").style.width = "100%";
-		document.getElementById("pb").style.transition = currentTransition;
-
-		moveTimer();
-
-		clearInterval(stopTimer);
-
-	}
-	vgmplay_webaudio.togglePause();
 }
 
 // key bindings
@@ -132,6 +183,9 @@ function setKeyBindings() {
 	});
 	Mousetrap.bind('p', function(e) {
 		changeTrack(1);
+	});
+	Mousetrap.bind('s', function(e) {
+		stopPlayback();
 	});
 }
 
@@ -151,36 +205,18 @@ function moveTimer(){
 
 // progress bar 
 
-function setProgressBar(){
-	trackData = vgmplay_webaudio.getTrackInfo();
-
-	if (trackData.loopPoint !== 0 ) extraTime = 5; else extraTime = 0;
-
-	if (!firstRun) {
-		document.getElementById("pb").style.transition = "0s linear";
-		document.getElementById("pb").style.width = "0%";
-	} else firstRun = false;
-
-	setTimeout(function(){
-		document.getElementById("pb").style.transition = trackData.trackLength+extraTime+"s linear";
-		document.getElementById("pb").style.width = "100%";
-	}, 100);
-
-	moveTimer();
-}
-
 var parentDiv = document.getElementById('p');
 
 parentDiv.addEventListener('click', function (e) {
         var offset = this.getClientRects()[0];
         var destination = (e.clientX - offset.left)/4;
-        document.getElementById("pb").style.transition = "0s linear";
-        document.getElementById("pb").style.width = destination+"%";
+        pb.style.transition = "0s linear";
+        pb.style.width = destination+"%";
 	setTimeout(function(){
 		var clicked = trackData.trackLength-(trackData.trackLength*(destination/100));
 		if (!vgmplay_webaudio.isPaused) {
-			document.getElementById("pb").style.width = "100%";
-			document.getElementById("pb").style.transition = clicked+extraTime+"s linear";
+			pb.style.width = "100%";
+			pb.style.transition = clicked+extraTime+"s linear";
 		}
 		secondsPassed = Math.floor(trackData.trackLength*(destination/100));
 		vgmplay_webaudio.seek(Math.floor(destination*(trackData.trackLength/100)));
@@ -248,14 +284,6 @@ window.addEventListener('DOMContentLoaded', function() {
 
 // old/tests...
 
-function displayStuff(){
-	var test = vgmplay_webaudio.getTrackInfo();
-	console.log("Track length: "+test[0]);
-	console.log("Loop point: "+test[1]);
-	console.log("Loop count: "+test[2]);
-	console.log("Initial length: "+test[3]);
-}
-
 function readInMemory(){
 	context = new AudioContext();
 	destination = context.destination;
@@ -284,7 +312,7 @@ function readInMemory(){
 //const vgmplay = new VGMPlay();
 
 function load() {
-	vgmplay.loadURL("http://1.2.3.4/01.vgm");
+	vgmplay.loadURL(url + "01.vgm");
 	vgmplay.play();
 }
 

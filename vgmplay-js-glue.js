@@ -134,6 +134,7 @@ class VGMPlay_WebAudio extends VGMPlay {
 	constructor() {
 		super();
 
+		window.AudioContext = window.AudioContext||window.webkitAudioContext;
 		this.context = new AudioContext();
 		this.destination = this.destination || this.context.destination;
 		this.sampleRate = this.context.sampleRate;

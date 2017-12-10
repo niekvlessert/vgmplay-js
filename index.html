@@ -104,7 +104,7 @@ Module['onRuntimeInitialized'] = function() {
 		setTimeout(function(){
 			pb.style.transition = trackData.trackLength+extraTime+"s linear";
 			pb.style.width = "100%";
-		}, 100);
+		}, 500);
 
 		moveTimer();
 	}
@@ -220,7 +220,7 @@ parentDiv.addEventListener('click', function (e) {
 		}
 		secondsPassed = Math.floor(trackData.trackLength*(destination/100));
 		vgmplay_webaudio.seek(Math.floor(destination*(trackData.trackLength/100)));
-	 }, 0);
+	 }, 100);
 }, false);
 
 // drag 'n drop

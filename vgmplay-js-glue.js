@@ -5,23 +5,32 @@ class VGMPlay {
 	constructor() {
 		this.VGMPlay_Init = Module.cwrap('VGMPlay_Init');
 		this.VGMPlay_Init2 = Module.cwrap('VGMPlay_Init2');
-	        this.FillBuffer = Module.cwrap('FillBuffer2','number',['number','number']);
-	        this.OpenVGMFile = Module.cwrap('OpenVGMFile','number',['string']);
-	        this.CloseVGMFile = Module.cwrap('CloseVGMFile');
+		this.FillBuffer = Module.cwrap('FillBuffer2','number',['number','number']);
+		this.OpenVGMFile = Module.cwrap('OpenVGMFile','number',['string']);
+		this.CloseVGMFile = Module.cwrap('CloseVGMFile');
 		this.PlayVGM = Module.cwrap('PlayVGM');
-	        this.StopVGM = Module.cwrap('StopVGM');
-	        this.VGMEnded = Module.cwrap('VGMEnded');
-	        this.GetTrackLength = Module.cwrap('GetTrackLength');
-	        this.GetLoopPoint = Module.cwrap('GetLoopPoint');
-	        this.SeekVGM = Module.cwrap('SeekVGM','number',['number','number']);
+		this.StopVGM = Module.cwrap('StopVGM');
+		this.VGMEnded = Module.cwrap('VGMEnded');
+		this.GetTrackLength = Module.cwrap('GetTrackLength');
+		this.GetLoopPoint = Module.cwrap('GetLoopPoint');
+		this.SeekVGM = Module.cwrap('SeekVGM','number',['number','number']);
 		this.SetSampleRate = Module.cwrap('SetSampleRate','number',['number']);
 		this.SetLoopCount = Module.cwrap('SetLoopCount','number',['number']);
 		this.SamplePlayback2VGM = Module.cwrap('SamplePlayback2VGM','number',['number']);
 
-		this.dataPtr0 = Module._malloc(16384*2);
-		this.dataPtr1 = Module._malloc(16384*2);
-		this.dataHeap0 = new Int16Array(Module.HEAPU8.buffer, this.dataPtr0, 16384);
-		this.dataHeap1 = new Int16Array(Module.HEAPU8.buffer, this.dataPtr1, 16384);
+		this.dataPtrs = [];
+		this.dataPtrs[0] = Module._malloc(16384*2);
+		this.dataPtrs[1] = Module._malloc(16384*2);
+
+		this.dataHeaps = [];
+		this.dataHeaps[0] = new Int16Array(Module.HEAPU8.buffer, this.dataPtrs[0], 16384);
+		this.dataHeaps[1] = new Int16Array(Module.HEAPU8.buffer, this.dataPtrs[1], 16384);
+
+		this.buffers = [];
+		this.buffers[0] = [];
+		this.buffers[1] = [];
+
+		this.results = [];
 	}
 	
 	initialise (loopCount, sampleRate) {
@@ -98,9 +107,7 @@ class VGMPlay {
 		this.initialLength = Math.floor(this.trackLength-((this.loopCount-1)*this.loopPoint));
 		this.trackInfo = {trackLength:this.trackLength, loopPoint:this.loopPoint, loopCount:this.loopCount, initialLength:this.initialLength};
 		return this.trackInfo;
-		//return [this.trackLength, this.loopPoint, this.loopCount, this.initialLength];
 	}
-
 
 	stop () {
 		if (this.isPlaying) {
@@ -110,23 +117,21 @@ class VGMPlay {
 		}
 	}
 
-	generateWave () {}
-
 	getAudioBuffer () {
-        	this.FillBuffer(this.dataHeap0.byteOffset, this.dataHeap1.byteOffset);
-		this.result = new Int16Array(this.dataHeap0.buffer, this.dataHeap0.byteOffset, 16384);
+		this.FillBuffer(this.dataHeaps[0].byteOffset, this.dataHeaps[1].byteOffset);
+		this.results = new Int16Array(this.dataHeaps[0].buffer, this.dataHeaps[0].byteOffset, 16384);
 		/*this.output = new Float32Array();
 		for (var i = 0; i < 16384; i++) {
                         //output[i] = Math.random();
-                        this.output[i] = this.result[i] / 32768;
+                        this.output[i] = this.results[i] / 32768;
 			//if (this.output[i] !==0) console.log(this.output[i]);
                 }*/
 		return this.result;
 	}
+
 	seek (seconds) {
 		this.SeekVGM(0,this.SamplePlayback2VGM(seconds*44100));
 	}
-	
 }
 
 class VGMPlay_WebAudio extends VGMPlay { 
@@ -182,8 +187,23 @@ class VGMPlay_WebAudio extends VGMPlay {
 		this.playAudio();
 	}
 
+	generateBuffer() {
+		this.FillBuffer(this.dataHeaps[0].byteOffset, this.dataHeaps[1].byteOffset);
+
+		this.results[0] = new Int16Array(this.dataHeaps[0].buffer, this.dataHeaps[0].byteOffset, 16384);
+		this.results[1] = new Int16Array(this.dataHeaps[1].buffer, this.dataHeaps[1].byteOffset, 16384);
+
+		for (var i = 0; i < 16384; i++) {
+			this.buffers[0][i] = this.results[0][i] / 32768;
+			this.buffers[1][i] = this.results[1][i] / 32768;
+		}
+	}
+
 	playAudio () {
 		const classContext = this;
+
+		// generate buffer in advance to avoid hickups
+		this.generateBuffer();
 
 		this.node.onaudioprocess = function (e) {
 			this.output0 = e.outputBuffer.getChannelData(0);
@@ -193,13 +213,11 @@ class VGMPlay_WebAudio extends VGMPlay {
 				classContext.stop();
 				if (classContext.callbackTrackEnd) classContext.callbackTrackEnd();
 			}
-			classContext.FillBuffer(classContext.dataHeap0.byteOffset, classContext.dataHeap1.byteOffset);
-			this.result0 = new Int16Array(classContext.dataHeap0.buffer, classContext.dataHeap0.byteOffset, 16384);
-			this.result1 = new Int16Array(classContext.dataHeap1.buffer, classContext.dataHeap1.byteOffset, 16384);
 			for (var i = 0; i < 16384; i++) {
-				this.output0[i] = this.result0[i] / 32768;
-				this.output1[i] = this.result1[i] / 32768;
+				this.output0[i] = classContext.buffers[0][i];
+				this.output1[i] = classContext.buffers[1][i];
 			}
+			classContext.generateBuffer();
 		};
 	}
 
